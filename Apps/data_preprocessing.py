@@ -44,4 +44,5 @@ class PreprocessedData(FeatureData):
 
 
 if __name__ == '__main__':
+    print(PreprocessedData.preprocessor)
     pass
