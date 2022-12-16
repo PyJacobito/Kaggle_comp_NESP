@@ -1,21 +1,76 @@
-# FIXME: Conversion into feature extraction class
 from pandas import DataFrame, concat
 from protlearn.features import aac, entropy, aaindex1, atc
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import MinMaxScaler, Normalizer, LabelEncoder
 from lev_dist_func import levenshtein_ratio_and_distance
+from typing import List, AnyStr, Any
+from numpy import ndarray, array, transpose
 
 
 from data_cleaning import CleanedData
 
 
-class FeatureData:
+class FeatureData(CleanedData):
 
-    train_X = CleanedData.cleaned_train_data.drop('tm', axis=1)
-    train_Y = CleanedData.cleaned_train_data.tm
-    test_X = CleanedData.cleaned_test_data
-    X_list = [train_X, test_X]
-    base_protein_seq = 'VPVNPEPDATSVENVALKTGSGDSQSDPIKADLEVKGQSALPFDVDCWAILCKGAPNVLQRVNEKTKNSNRDRSGANKGPFKDPQKWGIKALPPKNPSWSAQDFKSPEEYAFASSLQGGTNAILAPVNLASQNSQGGVLNGFYSANKVAQFDPSKPQQTKGTWFQITKFTGAAGPYCKALGSNDKSVCDKNKNIAGDWGFDPAKWAYQYDEKNNKFNYVGK'
+    __ami_symbols = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
+    __seq_col = 'protein_sequence'
+
+    @staticmethod
+    def _ftn1_convert_num_columns(df: DataFrame, col_names: List[AnyStr], *args: Any) -> ndarray:
+        return df[col_names].to_numpy()
+
+
+    @staticmethod
+    def _ftc1_get_seq_length(df: DataFrame, *args: Any, col_name: AnyStr = __seq_col) -> ndarray:
+        return df[col_name].map(lambda x: len(x)).to_numpy()
+
+
+    @staticmethod
+    def _ftc2_get_count_symb(df: DataFrame, *args: Any, col_name: AnyStr = __seq_col,
+                             amino_res_list: List[AnyStr] = __ami_symbols) -> ndarray:
+        return array([[df[col_name].map(lambda x: x.count(amino_symbol)).tolist()] for amino_symbol in amino_res_list]).T
+
+
+    @staticmethod
+    def _ftc3_get_
+
+
+    def __init__(self):
+        super(FeatureData, self).__init__()
+        self.cat_col_list = [col_name for col_name in self.cleaned_train_data.columns
+                         if self.cleaned_train_data[col_name].nunique() < 10
+                         and self.cleaned_train_data[col_name].dtype == "object"]
+        self.num_cols_list = [col_name for col_name in self.cleaned_train_data.columns
+                         if self.cleaned_train_data[col_name].dtype in ['int64', 'float64']]
+
+        self.__temp_df_list = []
+        self.__static_method_list = []
+
+        for attribute in dir(self):
+            attribute_value = getattr(self, attribute)
+            if isinstance(attribute_value, DataFrame):
+                self.__temp_df_list.append(attribute_value)
+
+            if callable(attribute_value) and attribute.startswith('_'):
+                self.__static_method_list.append(attribute_value)
+
+        self
+
+        # self.__temp_df_list = [getattr(self, df_var) for df_var in dir(self)
+        #                       if getattr(self, df_var).startswith('_')]
+        #
+        # self.__static_method_list = [getattr(self, static_method) for static_method in dir(self)
+        #                       if callable(getattr(self, static_method))
+        #                       and getattr(self, static_method).startswith('_')]
+
+
+
+
+        train_X = CleanedData.cleaned_train_data.drop('tm', axis=1)
+        train_Y = CleanedData.cleaned_train_data.tm
+        test_X = CleanedData.cleaned_test_data
+        X_list = [train_X, test_X]
+        base_protein_seq = 'VPVNPEPDATSVENVALKTGSGDSQSDPIKADLEVKGQSALPFDVDCWAILCKGAPNVLQRVNEKTKNSNRDRSGANKGPFKDPQKWGIKALPPKNPSWSAQDFKSPEEYAFASSLQGGTNAILAPVNLASQNSQGGVLNGFYSANKVAQFDPSKPQQTKGTWFQITKFTGAAGPYCKALGSNDKSVCDKNKNIAGDWGFDPAKWAYQYDEKNNKFNYVGK'
 
     @staticmethod
     def _get_base_len_dif(df:DataFrame, base_str: str) -> None:
@@ -70,10 +125,10 @@ class FeatureData:
         atc_list, bonds_vector = atc(df['protein_sequence'].to_list(), method='relative')
 
         # for i, j in enumerate(atom_list):
-        #     df[f'aac_{j}'] = DataFrame({f'aac_{j}': atc_list[:, i]})
+        #     df[f'atc_{j}'] = DataFrame({f'atc_{j}': atc_list[:, i]})
 
         for k, l in enumerate(bond_list):
-            df[f'aac_{l}'] = DataFrame({f'aac_{l}': bonds_vector[:, k]})
+            df[f'atc_{l}'] = DataFrame({f'atc_{l}': bonds_vector[:, k]})
 
 
     @staticmethod

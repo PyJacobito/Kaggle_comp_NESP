@@ -1,4 +1,4 @@
-from data_loading import LoadedData
+from Apps.data_loading import LoadedData
 from pandas import DataFrame
 
 

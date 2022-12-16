@@ -94,6 +94,7 @@ class LoadedData:
 
             del self.loading_paths_dict
 
+
 if __name__ == "__main__":
     Loaded_data = LoadedData()
     print(Loaded_data.train_df.head(5))
