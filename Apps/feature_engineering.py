@@ -1,87 +1,130 @@
-# FIXME: Conversion into feature extraction class
-from pandas import DataFrame
+from pandas import DataFrame, concat
 from protlearn.features import aac, entropy, aaindex1, atc
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import MinMaxScaler, Normalizer, LabelEncoder
+from sklearn.decomposition import PCA
+from sklearn.metrics import mutual_info_score
+from typing import List, AnyStr, Any
+from numpy import ndarray, array, concatenate, expand_dims, nanmean, where, isnan, take
 
-from data_cleaning import CleanedData
-
-
-class FeatureData:
-
-    train_X = CleanedData.cleaned_train_data.drop('tm', axis=1)
-    train_Y = CleanedData.cleaned_train_data.tm
-    test_X = CleanedData.cleaned_test_data
-    X_list = [train_X, test_X]
-
-    @staticmethod
-    def _drop_prot_seq(df: DataFrame) -> None:
-        df.drop('protein_sequence', axis=1, inplace=True)
+from Apps.data_cleaning import CleanedData
 
 
-    @staticmethod
-    def _get_entropy(df: DataFrame) -> None:
-        df['entropy'] = df.protein_sequence.map(entropy)
+class FeatureData(CleanedData):
 
+    __ami_symbols = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
+    __seq_col = 'protein_sequence'
+    __target_column = 'tm'
 
     @staticmethod
-    def _get_atc(df: DataFrame) -> None:
-        atom_list = ['C', 'H', 'N', 'O', 'S']
-        bond_list = ['tot_bonds', 'single_bonds', 'double_bonds']
-        atc_list, bonds_vector = atc(df['protein_sequence'].to_list())
-
-        for i, j in enumerate(atom_list):
-            df[f'aac_{j}'] = DataFrame({f'aac_{j}': atc_list[:, i]})
-
-        for k, l in enumerate(bond_list):
-            df[f'aac_{l}'] = DataFrame({f'aac_{l}': bonds_vector[:, k]})
-
+    def _ftn1_fill_na_mean(df: DataFrame, *args: Any, col_name: AnyStr = 'pH') -> None:
+        df[col_name].fillna(float(df[col_name].mean()), inplace=True)
 
     @staticmethod
-    def _get_aaindex1(df: DataFrame) -> None:
-        aaindex_list, inds = aaindex1(df['protein_sequence'].to_list())
-
-        for i, j in enumerate(inds):
-            df[f'aaindex_{j}'] = DataFrame({f'aaindex_{j}': aaindex_list[:, i]})
-
+    def _ftn2_convert_num_columns(df: DataFrame, col_names: List[AnyStr], *args: Any) -> ndarray:
+        if len(col_names) > 0:
+            return df[col_names].to_numpy()
 
     @staticmethod
-    def _get_seq_len(df: DataFrame) -> None:
+    def _ftc1_get_seq_length(df: DataFrame, *args: Any, col_name: AnyStr = __seq_col) -> ndarray:
+        return expand_dims(df[col_name].map(lambda x: len(x)).to_numpy(), 1)
 
-        if 'protein_sequence' in df.columns and 'seq_len' not in df.columns:
-            df['seq_len'] = df.protein_sequence.map(lambda x: len(x))
-
-        else:
-            raise AttributeError('No protein_sequence column in the DataFrame')
-
+    # @staticmethod
+    # def _ftc2_get_count_symb(df: DataFrame, *args: Any, col_name: AnyStr = __seq_col,
+    #                          amino_res_list: List[AnyStr] = __ami_symbols) -> ndarray:
+    #     return array([df[col_name].map(lambda x: x.count(amino_symbol)).tolist() for amino_symbol in amino_res_list]).T
 
     @staticmethod
-    def _get_aac(df: DataFrame) -> None:
-        aac_list, aac_base = aac(df.protein_sequence.to_list())
+    def _ftc3_get_aac(df: DataFrame, *args: Any, col_name: AnyStr = __seq_col) -> ndarray:
+        aac_list, aac_base = aac(df[col_name].to_list(), method='relative')
+        return aac_list if len(aac_base) > 0 else ValueError('Protein sequance base is zero')
 
-        if len(aac_base) >= 1:
-            for i, j in enumerate(aac_base):
-                df[f'aac_{j}'] = DataFrame({f'aac_{j}': aac_list[:, i]})
+    @staticmethod
+    def _ftc4_get_atc_atom_arr(df: DataFrame,  *args: Any, col_name: AnyStr = __seq_col) -> ndarray:
+        atc_arr, bonds_arr = atc(df[col_name].to_list(), method='relative')
+        return atc_arr if atc_arr is not None else ValueError('Protein sequance base is zero')
 
-        else:
-            raise ValueError('Protein sequance base is zero')
+    @staticmethod
+    def _ftc4_get_atc_bonds_arr(df: DataFrame,  *args: Any, col_name: AnyStr = __seq_col) -> ndarray:
+        atc_arr, bonds_arr = atc(df[col_name].to_list(), method='relative')
+        return bonds_arr if bonds_arr is not None else ValueError('Protein sequance base is zero')
+
+    # @staticmethod
+    # def _ftc5_get_aaindex(df: DataFrame,  *args: Any, col_name: AnyStr = __seq_col) -> ndarray:
+    #     aaindex_arr, inds = aaindex1(df[col_name].to_list())
+    #     return aaindex_arr if inds is not None else ValueError('Protein sequance base is zero')
+
+    @staticmethod
+    def _ftc6_get_entropy(df: DataFrame, *args: Any, col_name: AnyStr = __seq_col) -> ndarray:
+        return entropy(df[col_name].to_list(), standardize='none')
 
 
-    if X_list:
-        for i in X_list:
-            # i.reset_index()
-            _get_seq_len(i)
-            _get_aac(i)
-            _get_entropy(i)
-            _get_aaindex1(i)
-            _get_atc(i)
-            _drop_prot_seq(i)
+    def _join_arr(self, func_list: List[AnyStr], df: DataFrame, *args: Any) -> ndarray:
+        func_val_list = []
+        col_desc_list = []
 
-    else:
-        raise ValueError('No X variable')
+        for function in func_list:
+            funct_value = getattr(self, function)(df, self.num_cols_list)
+            if funct_value is not None:
+                func_val_list.append(funct_value)
+                if function.startswith('_ftn1') is False:
+                    for iterator in range(funct_value.shape[1]):
+                        col_desc_list.append(f'{function.split("_")[1]}_{iterator}')
+
+        return concatenate(func_val_list, axis=1), col_desc_list
+
+
+    def __init__(self):
+        super(FeatureData, self).__init__()
+
+        self.data_dict = {'original_train_indices': self.cleaned_train_data.index.tolist(),
+                          'original_test_indices': self.cleaned_test_data.index.tolist()}
+        self.cleaned_train_data.reset_index(inplace=True)
+        self.cleaned_test_data.reset_index(inplace=True)
+        self.data_dict['new_train_indices'] = self.cleaned_train_data.index
+        self.data_dict['new_test_indices'] = self.cleaned_test_data.index
+        self.data_dict['train_y'] = self.cleaned_train_data[self.__target_column]
+        self.cleaned_train_data.drop(self.__target_column, axis=1, inplace=True)
+        self.data_dict['combined_data'] = concat([self.cleaned_train_data, self.cleaned_test_data])
+
+        # for df_purpose in ['train', 'test']:
+        #     for df_type in ['Y', 'X']:
+        #         df_name = f'{df_purpose}_{df_type}'
+        #
+        #         if df_purpose == 'train' and df_type == 'Y':
+        #             self.df_name = getattr(self, f'cleaned_{df_purpose}_data')[self.__target_column].to_numpy
+        #
+        #         elif df_purpose == 'train':
+        #             self.df_name = getattr(self, f'cleaned_{df_purpose}_data').drop(self.__target_column, axis=1, inplace=True)
+
+        self.cat_col_list = [col_name for col_name in self.cleaned_train_data.columns
+                             if self.cleaned_train_data[col_name].nunique() < 10
+                             and self.cleaned_train_data[col_name].dtype == "object"]
+
+        self.num_cols_list = [col_name for col_name in self.cleaned_train_data.columns
+                              if self.cleaned_train_data[col_name].dtype in ['int64', 'float64']
+                              and col_name.find('id') == -1]
+
+        self.__static_method_list = []
+
+        for method in dir(self):
+            if callable(getattr(self, method)) and method.startswith('_ft'):
+                self.__static_method_list.append(method)
+
+        self.data_dict['featured_data'], self.data_dict['col_labels'] = self._join_arr(self.__static_method_list, self.data_dict['combined_data'])
+        self.data_dict['train_X'] = self.data_dict['featured_data'][self.data_dict['new_train_indices'], :]
+        self.data_dict['test_X'] = self.data_dict['featured_data'][self.data_dict['new_test_indices'], :]
+        self.data_dict.pop('combined_data')
+        self.data_dict.pop('featured_data')
+        self.data_dict.pop('new_train_indices')
+        self.data_dict.pop('new_test_indices')
 
 
 if __name__ == '__main__':
-    print(FeatureData.train_X.head())
-    print(FeatureData.train_X.isna().sum())
-    print(len(FeatureData.train_X.seq_len))
-    print(len(FeatureData.train_X.aac_O))
+    Feature_data = FeatureData()
+    print(Feature_data.data_dict['train_X'].shape)
+    print(Feature_data.data_dict['train_X'][:10])
+    print(Feature_data.data_dict['test_X'].shape)
+    print(Feature_data.data_dict.keys())
+    print(Feature_data.data_dict['col_labels'])
     pass
