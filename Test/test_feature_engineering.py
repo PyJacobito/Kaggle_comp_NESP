@@ -3,7 +3,7 @@ from pandas import DataFrame
 from numpy import ndarray, array
 from numpy.random import rand
 from random import seed
-from string import ascii_lowercase
+from string import ascii_lowercase, ascii_uppercase
 
 seed(123)
 
@@ -26,9 +26,11 @@ class TestFeatureData:
     col_names = [ascii_lowercase[i] for i in range(len(temp_narr))]
     temp_df = DataFrame(temp_narr, columns=col_names)
     class_var = FeatureData()
+    seq_col = 'protein_sequence'
 
     def test_construction(self):
         assert self.class_var
+
 
     def test_private_variable(self):
         assert self.class_var.__getattribute__('_FeatureData__ami_symbols') == ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I',
@@ -60,8 +62,6 @@ class TestFeatureData:
         except IndexError:
             assert True
 
-        except TypeError:
-            assert True
-
 
     def test_ftc1_get_seq_length(self):
+        assert True
